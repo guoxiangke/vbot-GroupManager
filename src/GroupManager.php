@@ -1,6 +1,6 @@
 <?php
 
-namespace Guoxiangke\VbotGroupManager;
+namespace Guoxiangke\GroupManager;
 
 use Hanson\Vbot\Extension\AbstractMessageHandler;
 
@@ -11,7 +11,7 @@ use Hanson\Vbot\Message\Card;
 use Hanson\Vbot\Message\Text;
 use Illuminate\Support\Collection;
 
-class VbotGroupManager extends AbstractMessageHandler
+class GroupManager extends AbstractMessageHandler
 {
 
     public $author = 'Dale.Guo';
