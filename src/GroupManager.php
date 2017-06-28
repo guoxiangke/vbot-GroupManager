@@ -21,9 +21,9 @@ class GroupManager extends AbstractMessageHandler
     public $name = 'group_manager';
 
     public $zhName = '群主管理';
+
     public static $status = true;
-    
-    private static $array = [];
+    private static $points = [];
 
     public function handler(Collection $message)
     {
@@ -35,10 +35,11 @@ class GroupManager extends AbstractMessageHandler
 
         // 获取自己实例
         $myself = vbot('myself');
+
         //自动转发管理员@群名称发的消息给机器人，然后去掉@群名后转发到对应的群里。
         //TODO; 确定管理员标准按照昵称？
         //begin of 群管理
-        foreach ($groups as $gid => $group) {
+        foreach ($groups as $groupUsername => $group) {
             //check must be 群主
             if( isset($group['IsOwner']) && !$group['IsOwner']) {
                 continue;
@@ -52,67 +53,98 @@ class GroupManager extends AbstractMessageHandler
             // begin 自动转发
             if (in_array($message['from']['NickName'], ['天空蔚蓝','xiaoyong','小永'])) {//bug TODO  set ［var］ name？！
                 //check B if in AA?
-                $is_ingroup = false;
-                foreach ($group['MemberList'] as  $member) {
-                    if($member['UserName'] == $message['from']['UserName']){
-                        $is_ingroup = true;
-                        break;
-                    }
-                }
-                if($is_ingroup) {
+                if(static::isUserInGroup($group, $message)) {
                     if(strrpos($message['content'], '@'.$group['NickName'], -strlen($message['content'])) !== false ){
                         $reg = '/'.preg_quote('@'.$group['NickName'], '/').'/';
                         $content = preg_replace($reg, '', $message['content'], 1);
-                        Text::send($gid,$content);
-
+                        Text::send($groupUsername,$content);
                         //add message to DB
                         //end DB
-                        return;
                     }
                 }
                 
             }//end of 自动转发
 
-            //如果添加好友时填写完整群名字！或拼音
-            if ($message['type'] === 'request_friend') {
-                // vbot('console')->log('收到好友申请:'.$message['info']['Content'].$message['avatar']);
-                if ($message['info']['Content'] === $group['NickName']) {
-                    $friends->approve($message);
-                    Text::send($message['info']['UserName'], '亲，小永在这里等你很久了！感谢跟智能小永🤖️交朋友👬，永不止息，需要有你！');
-                    $groups->addMember($gid, $message['info']['UserName']);//$groups->getUsernameByNickname('直播吧')
-                    Text::send($message['info']['UserName'], '现在拉你进去群，记得设置免骚扰哦！😊');
-
-                }
-            }//end of 自动通过添加好友并入群，根据群名
-
-            //如果和小永🤖️聊天信息包含群全名，自动加入群组
-            if (strpos($message['content'], $group['NickName']) !== false) {
-                $groups->addMember($gid, $message['from']['UserName']);
-                Text::send($message['from']['UserName'], '现在拉你进去群，记得设置免骚扰哦！');
-            }
 
             //////begin!!//////
-            // vbot('console')->log($group['NickName'],'<pre>'.print_r($message,1));
-            // vbot('console')->log($gid,$group['NickName']);
             if ($message['from']['NickName'] === $group['NickName']) {//'直播吧' && is admin!!!
-                //管理员功能！！！//@sss 踢                    // @人+暗号踢人出去：
-                if(isset($message['pure']) && $message['pure'] == '踢' ) {//&& $message['isAt']
-                    if (in_array($message['sender']['NickName'], ['xiaoyong','小永','天空蔚蓝'])) {// have bug
-                        $pattern = '/@(\S+) 踢/';
-                        preg_match($pattern, $message['content'],$matches);
-                        //vbot('console')->log($message['content'],'<pre>'.print_r($matches,1));
-                        if (isset($matches[1])) {
-                            Text::send($gid,$matches[0].'你即将被踢出群了');
-                            // $groups->deleteMember($gid, $message['from']['UserName']);
-                        } 
+                //管理员功能！！！
+                //@sss 踢begin
+                if(isset($message['pure']) && $message['pure'] == '踢' && $message['fromType']='Self' ) {
+                    $pattern = '/@(\S+)\s*踢$/';
+                    preg_match($pattern, $message['content'],$matches);
+                    if (isset($matches[1])) {
+                        Text::send($groupUsername,$matches[0].'你即将被踢出群聊，再见👋');
+                        if($uid = static::getUidByName($matches[1], $group)){
+                            $groups->deleteMember($groupUsername, $uid);
+                        }
                     }
                 }
+                //@sss 踢end
+
+                //@昵称＋＋ 积分！！begin
+                if(isset($message['pure']) && in_array($message['pure'], ['[强]','[弱]'])) {
+                    //初始化积分,默认100分，管理员每次－10分，else＋－1分，50分踢出群！
+                    foreach ($group['MemberList'] as $member) {
+                        if(!isset(static::$points[$group['NickName']][$member['UserName']])){
+                            static::$points[$group['NickName']][$member['UserName']]= 100;
+                        }
+                    }
+                    // if($member['UserName'] == $message['username']){
+                        $points = 1;
+                        if($message['fromType']=='Self' || $message['sender']['RemarkName']=='代理群主') $points=10;
+                        $pattern = '/@(\S+)\s*\[/';//get nickname 小永
+                        preg_match($pattern, $message['content'],$matches);
+                        $memberNickname = trim((String)$matches[1]);
+                        $uid = static::getUidByName($memberNickname, $group);
+                        if($uid){//如果@不是群内的人昵称，忽略！！！
+                            if($message['pure'] =='[强]'){
+                                static::$points[$group['NickName']][$uid]+=$points;
+                                Text::send($groupUsername, '@'.$memberNickname." 恭喜您获得积分:  $points \r\n 您的积分: ".static::$points[$group['NickName']][$uid]);
+                            }else{
+                                //不能减管理员的分数！或者说管理员不能退出群！！！
+                                // 代理群主也是－10分！
+                                static::$points[$group['NickName']][$uid]-=$points;
+                                if(static::$points[$group['NickName']][$uid]<60){
+                                    if($uid != $message['from']['ChatRoomOwner']){
+                                        Text::send($groupUsername, '@'.$memberNickname." 扣除积分:  $points \r\n 您的积分: ".static::$points[$group['NickName']][$uid]." \r\n 不及格，即将被踢出本群！再见👋");
+                                        $groups->deleteMember($groupUsername, $member['UserName']);
+                                        unset(static::$points[$group['NickName']][$uid]);
+                                    }
+                                }else{
+                                    Text::send($groupUsername, '@'.$memberNickname." 扣除积分:  $points \r\n 您的积分: ".static::$points[$group['NickName']][$uid]);
+                                }
+                            }
+                        }else{
+                            Text::send($groupUsername, '@'.$memberNickname." 不在本群，请检查昵称再试！[撇嘴]");
+                        }
+                    // }
+                    //++ --
+                }//@昵称＋＋ 积分！！end
+                if($message['content'] == '积分') {
+                    //积分初始化；
+                    if(!isset(static::$points[$group['NickName']])){
+                        static::initGroupPoints($group);
+                    }
+                    foreach ($group['MemberList'] as $key => $member) {
+                        $group['MemberList'][$key]['points'] = static::$points[$group['NickName']][$member['UserName']] ;
+                        $points[$key] = static::$points[$group['NickName']][$member['UserName']] ;
+                    }
+                    array_multisort($points, SORT_DESC,  $group['MemberList']);
+                    $i = 0; $tops = '';
+                    foreach ($group['MemberList'] as $member) {
+                        if($i++>5) break;
+                        $tops .= $i.'.'.$member['NickName'] . '｜' . $member['points']."分\r\n";
+                    }
+                    Text::send($groupUsername, "😇积分Top5排行榜😇\r\n".$tops);
+                }
+
                 // 设置群名称 直播吧
                 // 红包、转账提醒
                 // 自定义回复
                 // 特殊关键词触发事件
                 // $experience = '欢迎加入直播体验群：点此访问直播页面！回复［名片］可获取小永🤖️名片；回复［公众号］可关注我们！';
-                $rule = 'https://live.yongbuzhixi.com <点此访问直播页面！回复［名片］可获取小永🤖️名片；回复［公众号］可关注我们！先感谢大家对永不止息的的支持，谢谢配合。';
+                $rule = 'https://live.yongbuzhixi.com <点此访问直播页面！回复［名片］可获取小永🤖️名片；回复［关注］可关注我们！先感谢大家对永不止息的的支持，谢谢配合。';
                 //处理文本消息！
                 $content = $message['content'];
                 if ($message['type'] === 'text') {
@@ -140,13 +172,59 @@ class GroupManager extends AbstractMessageHandler
 
                 if ($message['type'] === 'group_change') {
                     if ($message['action'] === 'ADD') {
-                        Text::send($message['from']['UserName'], '欢迎新人 '.$message['invited'] ."[鼓掌]");
+                        Text::send($message['from']['UserName'], '欢迎新人 @'.$message['invited'] ."[鼓掌]");
                     }
                 }
                 //other type with content!!!
             }
             //////end!!//////
+
+            //如果和小永🤖️聊天信息包含群全名，if not in group!!自动加入群组
+            if (isset($message['content']) && strpos($message['content'], $group['NickName']) !== false) {
+                if(!static::isUserInGroup($group, $message)) {//if not in group!!
+                    $groups->addMember($groupUsername, $message['from']['UserName']);
+                    Text::send($message['from']['UserName'], "现在自动拉你进去群，入群后\r\n1.看群公告\r\n2.设置消息免打扰");
+                    return;
+                }
+            }
         }//end of 群管理
+    }
+
+  /**
+   * Current message user is in one group?
+   * @param $group
+   * @param \Illuminate\Support\Collection $message
+   *
+   * @return bool
+   */
+    public static function isUserInGroup($group, Collection $message){
+        foreach ($group['MemberList'] as $member) {
+            if($member['UserName'] == $message['from']['UserName']){
+                return true;
+            }
+        }
+        return false;
+    }
+
+  /**
+   * @param $name
+   * @param $group
+   *
+   * @return bool or String
+   */
+    public static function getUidByName($name, $group){
+        $key = array_search($name, array_column($group['MemberList'], 'NickName'));
+        if($key)  return $group['MemberList'][$key]['UserName'];
+        return false;
+    }
+
+    // 积分初始化；
+    public static function initGroupPoints($group){
+        foreach ($group['MemberList'] as $member) {
+            if(!isset(static::$points[$group['NickName']][$member['UserName']])){
+                static::$points[$group['NickName']][$member['UserName']] = 100;
+            }
+        }
     }
 
     /**
