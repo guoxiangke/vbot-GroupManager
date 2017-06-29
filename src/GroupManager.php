@@ -58,12 +58,24 @@ class GroupManager extends AbstractMessageHandler
                         $reg = '/'.preg_quote('@'.$group['NickName'], '/').'/';
                         $content = preg_replace($reg, '', $message['content'], 1);
                         Text::send($groupUsername,$content);
+                        return;
                         //add message to DB
                         //end DB
                     }
                 }
                 
             }//end of 自动转发
+
+            //如果和小永🤖️聊天信息包含群全名，if not in group!!自动加入群组
+            if (isset($message['content']) && strpos($message['content'], $group['NickName']) !== false) {
+                if(!static::isUserInGroup($group, $message)) {//if not in group!!
+                    $groups->addMember($groupUsername, $message['from']['UserName']);
+                    Text::send($message['from']['UserName'], '现在自动拉你进去'.$group['NickName']."群，入群后请\r\n☝看群公告\r\n✌设置消息免打扰");
+                }else{
+                    Text::send($message['from']['UserName'], '本话题已自动帮您转发到群里'.$group['NickName'].",有事儿咱们群里聊吧[握手]");
+                    Text::send($groupUsername,$message['from']['NickName'].'发布了本群话题：'.$message['content']);
+                }
+            }
 
 
             //////begin!!//////
@@ -134,9 +146,9 @@ class GroupManager extends AbstractMessageHandler
                     $i = 0; $tops = '';
                     foreach ($group['MemberList'] as $member) {
                         if($i++>5) break;
-                        $tops .= $i.'.'.$member['NickName'] . '｜' . $member['points']."分\r\n";
+                        $tops .= $i.'、'.$member['NickName'] . '（' . $member['points']."）\r\n";
                     }
-                    Text::send($groupUsername, "😇积分Top5排行榜😇\r\n".$tops);
+                    Text::send($groupUsername, "=====😇积分榜😇=====\r\n".$tops);
                 }
 
                 // 设置群名称 直播吧
@@ -178,17 +190,6 @@ class GroupManager extends AbstractMessageHandler
                 //other type with content!!!
             }
             //////end!!//////
-
-            //如果和小永🤖️聊天信息包含群全名，if not in group!!自动加入群组
-            if (isset($message['content']) && strpos($message['content'], $group['NickName']) !== false) {
-                if(!static::isUserInGroup($group, $message)) {//if not in group!!
-                    $groups->addMember($groupUsername, $message['from']['UserName']);
-                    Text::send($message['from']['UserName'], "现在自动拉你进去$group['NickName']群，入群后请\r\n☝看群公告\r\n✌设置消息免打扰");
-                }else{
-                    Text::send($message['from']['UserName'], "您已经在$group['NickName']群里，有事儿咱到群里聊吧！");
-
-                }
-            }
         }//end of 群管理
     }
 
