@@ -74,8 +74,8 @@ class GroupManager extends AbstractMessageHandler
                     $pattern = '/@(\S+)\s*踢$/';
                     preg_match($pattern, $message['content'],$matches);
                     if (isset($matches[1])) {
-                        Text::send($groupUsername,$matches[0].'你即将被踢出群聊，再见👋');
                         if($uid = static::getUidByName($matches[1], $group)){
+                            Text::send($groupUsername,$matches[0].'你即将被踢出群聊，再见👋');
                             $groups->deleteMember($groupUsername, $uid);
                         }
                     }
@@ -183,8 +183,10 @@ class GroupManager extends AbstractMessageHandler
             if (isset($message['content']) && strpos($message['content'], $group['NickName']) !== false) {
                 if(!static::isUserInGroup($group, $message)) {//if not in group!!
                     $groups->addMember($groupUsername, $message['from']['UserName']);
-                    Text::send($message['from']['UserName'], "现在自动拉你进去群，入群后请\r\n☝看群公告\r\n✌设置消息免打扰");
-                    return;
+                    Text::send($message['from']['UserName'], "现在自动拉你进去$group['NickName']群，入群后请\r\n☝看群公告\r\n✌设置消息免打扰");
+                }else{
+                    Text::send($message['from']['UserName'], "您已经在$group['NickName']群里，有事儿咱到群里聊吧！");
+
                 }
             }
         }//end of 群管理
