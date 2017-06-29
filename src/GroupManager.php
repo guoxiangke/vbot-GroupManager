@@ -172,7 +172,7 @@ class GroupManager extends AbstractMessageHandler
 
                 if ($message['type'] === 'group_change') {
                     if ($message['action'] === 'ADD') {
-                        Text::send($message['from']['UserName'], '欢迎新人 @'.$message['invited'] ."[鼓掌]");
+                        Text::send($message['from']['UserName'], '欢迎新人 @'.$message['invited'] ."[鼓掌]\r\n向大家[嘘]介绍一下自己吧[微笑]");
                     }
                 }
                 //other type with content!!!
@@ -183,7 +183,7 @@ class GroupManager extends AbstractMessageHandler
             if (isset($message['content']) && strpos($message['content'], $group['NickName']) !== false) {
                 if(!static::isUserInGroup($group, $message)) {//if not in group!!
                     $groups->addMember($groupUsername, $message['from']['UserName']);
-                    Text::send($message['from']['UserName'], "现在自动拉你进去群，入群后\r\n1.看群公告\r\n2.设置消息免打扰");
+                    Text::send($message['from']['UserName'], "现在自动拉你进去群，入群后请\r\n☝看群公告\r\n✌设置消息免打扰");
                     return;
                 }
             }
