@@ -22,7 +22,6 @@ class GroupManager extends AbstractMessageHandler
 
     public $zhName = '群主管理';
 
-    public static $status = true;
     private static $points = [];
 
     public function handler(Collection $message)
