@@ -104,7 +104,7 @@ class GroupManager extends AbstractMessageHandler
                     }
                     // if($member['UserName'] == $message['username']){
                         $points = 1;
-                        if($message['fromType']=='Self' || $message['sender']['RemarkName']=='代理群主') $points=10;
+                        if($message['fromType']=='Self' || (isset($message['sender']['RemarkName'])&&$message['sender']['RemarkName']=='代理群主')) $points=10;
                         $pattern = '/@(\S+)\s*\[/';//get nickname 小永
                         preg_match($pattern, $message['content'],$matches);
                         $memberNickname = trim((String)$matches[1]);
