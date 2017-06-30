@@ -47,8 +47,8 @@ class GroupManager extends AbstractMessageHandler
             // elseif( !isset($group['ChatRoomOwner']) || $group['ChatRoomOwner'] !== $myself->username) {
             //     continue;
             // }
-            
-            
+
+
 
             // begin 自动转发
             if (in_array($message['from']['NickName'], ['天空蔚蓝','xiaoyong','小永'])) {//bug TODO  set ［var］ name？！
@@ -63,7 +63,7 @@ class GroupManager extends AbstractMessageHandler
                         //end DB
                     }
                 }
-                
+
             }//end of 自动转发
 
             //如果和小永🤖️聊天信息包含群全名，if not in group!!自动加入群组
@@ -107,28 +107,30 @@ class GroupManager extends AbstractMessageHandler
                         if($message['fromType']=='Self' || (isset($message['sender']['RemarkName'])&&$message['sender']['RemarkName']=='代理群主')) $points=10;
                         $pattern = '/@(\S+)\s*\[/';//get nickname 小永
                         preg_match($pattern, $message['content'],$matches);
-                        $memberNickname = trim((String)$matches[1]);
-                        $uid = static::getUidByName($memberNickname, $group);
-                        if($uid){//如果@不是群内的人昵称，忽略！！！
-                            if($message['pure'] =='[强]'){
-                                static::$points[$group['NickName']][$uid]+=$points;
-                                Text::send($groupUsername, '@'.$memberNickname." 恭喜您获得积分:  $points \r\n 您的积分: ".static::$points[$group['NickName']][$uid]);
-                            }else{
-                                //不能减管理员的分数！或者说管理员不能退出群！！！
-                                // 代理群主也是－10分！
-                                static::$points[$group['NickName']][$uid]-=$points;
-                                if(static::$points[$group['NickName']][$uid]<60){
-                                    if($uid != $message['from']['ChatRoomOwner']){
-                                        Text::send($groupUsername, '@'.$memberNickname." 扣除积分:  $points \r\n 您的积分: ".static::$points[$group['NickName']][$uid]." \r\n 不及格，即将被踢出本群！再见👋");
-                                        $groups->deleteMember($groupUsername, $member['UserName']);
-                                        unset(static::$points[$group['NickName']][$uid]);
-                                    }
+                        if(isset($matches[1])){
+                            $memberNickname = trim($matches[1]);
+                            $uid = static::getUidByName($memberNickname, $group);
+                            if($uid){//如果@不是群内的人昵称，忽略！！！
+                                if($message['pure'] =='[强]'){
+                                    static::$points[$group['NickName']][$uid]+=$points;
+                                    Text::send($groupUsername, '@'.$memberNickname." 恭喜您获得积分:  $points \r\n 您的积分: ".static::$points[$group['NickName']][$uid]);
                                 }else{
-                                    Text::send($groupUsername, '@'.$memberNickname." 扣除积分:  $points \r\n 您的积分: ".static::$points[$group['NickName']][$uid]);
+                                    //不能减管理员的分数！或者说管理员不能退出群！！！
+                                    // 代理群主也是－10分！
+                                    static::$points[$group['NickName']][$uid]-=$points;
+                                    if(static::$points[$group['NickName']][$uid]<60){
+                                        if($uid != $message['from']['ChatRoomOwner']){
+                                            Text::send($groupUsername, '@'.$memberNickname." 扣除积分:  $points \r\n 您的积分: ".static::$points[$group['NickName']][$uid]." \r\n 不及格，即将被踢出本群！再见👋");
+                                            $groups->deleteMember($groupUsername, $member['UserName']);
+                                            unset(static::$points[$group['NickName']][$uid]);
+                                        }
+                                    }else{
+                                        Text::send($groupUsername, '@'.$memberNickname." 扣除积分:  $points \r\n 您的积分: ".static::$points[$group['NickName']][$uid]);
+                                    }
                                 }
+                            }else{
+                                Text::send($groupUsername, '@'.$memberNickname." 不在本群，请检查昵称再试！[撇嘴]");
                             }
-                        }else{
-                            Text::send($groupUsername, '@'.$memberNickname." 不在本群，请检查昵称再试！[撇嘴]");
                         }
                     // }
                     //++ --
