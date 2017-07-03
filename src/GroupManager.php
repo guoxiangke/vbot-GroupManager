@@ -9,6 +9,7 @@ use Hanson\Vbot\Contact\Groups;
 use Hanson\Vbot\Contact\Myself;
 use Hanson\Vbot\Message\Card;
 use Hanson\Vbot\Message\Text;
+use Hanson\Vbot\Message\Image;
 use Illuminate\Support\Collection;
 
 class GroupManager extends AbstractMessageHandler
@@ -25,6 +26,9 @@ class GroupManager extends AbstractMessageHandler
     private static $points = [];
     public static $status = true;
 
+    private static $request_friend_log = [];
+    private static $extension_config = [];
+
     public function handler(Collection $message)
     {
     	/** @var Friends $friends */
@@ -39,15 +43,52 @@ class GroupManager extends AbstractMessageHandler
         //自动转发管理员@群名称发的消息给机器人，然后去掉@群名后转发到对应的群里。
         //TODO; 确定管理员标准按照昵称？
         //begin of 群管理
+        $before_join_message = static::$extension_config['before_join_message'] ?: "现在自动拉你入群，进群后请\r\n☝看群公告\r\n✌设置消息免打扰";
+        $welcome_join_message = static::$extension_config['welcome_join_message'] ?:"欢迎您加入本群[鼓掌]\r\n向大家[嘘]介绍一下自己吧[微笑]";
+        $share_txt = static::$extension_config['share_txt'] ?:"请转发本图片到您朋友圈保留24小时即可获取播放地址，谢谢\r\n永不止息，感恩有你！\r\n如果已经发送的朋友，请您以基督徒的身份发送“已发朋友圈”给俺！";
+        
         foreach ($groups as $groupUsername => $group) {
             //check must be 群主
-            if( isset($group['IsOwner']) && !$group['IsOwner']) {
-                continue;
-            }
-            // elseif( !isset($group['ChatRoomOwner']) || $group['ChatRoomOwner'] !== $myself->username) {
-            //     continue;
-            // }
+            if( isset($group['IsOwner']) && !$group['IsOwner']) continue;
 
+            //如果添加好友时填写包涵完整群名字！
+            if ($message['type'] === 'request_friend'
+                && strpos($message['info']['Content'], $group['NickName']) !== false) {//发出请求！
+                // 全局记录请求的info：$message['info']['Content']
+                $friends->approve($message);//同意请求
+                $groups->addMember($groupUsername, $message['info']['UserName']);
+                Text::send($message['info']['UserName'], $before_join_message);
+                //完全相等！！！
+                if($message['info']['Content'] == $group['NickName']){
+                    static::$request_friend_log[$message['info']['UserName']] = $message['info'];
+                    $share_filename = static::$extension_config['image_path'].$group['NickName'].'/share.jpg';
+                    if(file_exists($share_filename)){
+                        Image::send($message['info']['UserName'], $share_filename);
+                        Text::send($message['info']['UserName'], $share_txt);
+                        break;
+                        // Text::send($gid, '⚠️播放链接即将私信发到您的微信，请注意查收!');
+                    }
+                }
+            }//如果添加好友时填写包涵完整群名字！end
+            //if 已发朋友圈 begin
+            if (isset($message['pure'])
+                && $message['type'] === 'text'
+                && $message['pure']=== "已发朋友圈"
+                && $message['fromType'] === 'Friend') {
+                if(isset(static::$request_friend_log[$message['from']['UserName']])){
+                    $group_nickname = static::$request_friend_log[$message['from']['UserName']]['Content'];//0CMYP
+                    if(isset(static::$extension_config['groups'][$group_nickname]['resource'])){
+                        $resource_return = static::$extension_config['groups'][$group_nickname]['resource'];
+                        Text::send($message['from']['UserName'], $resource_return);return;
+                    }else{
+                        Text::send($message['from']['UserName'], "对不起，由于您没有按套路出牌，机器人听不懂啦！");return;
+                    }
+                }else{
+                    Text::send($message['from']['UserName'], "对不起，由于您没有按套路出牌，机器人听不懂啦！");return;
+                }
+                
+            }
+            //if 已发朋友圈 end
 
 
             // begin 自动转发
@@ -72,7 +113,7 @@ class GroupManager extends AbstractMessageHandler
                 && $message['fromType']=='Friend') {
                 if(!static::isUserInGroup($group, $message)) {//if not in group!!
                     $groups->addMember($groupUsername, $message['from']['UserName']);
-                    Text::send($message['from']['UserName'], '现在自动拉你进去'.$group['NickName']."群，入群后请\r\n☝看群公告\r\n✌设置消息免打扰");
+                    Text::send($message['from']['UserName'], $before_join_message);
                 }else{
                     Text::send($message['from']['UserName'], '本话题已自动帮您转发到群里'.$group['NickName'].",有事儿咱们群里聊吧[握手]");
                     Text::send($groupUsername,$message['from']['NickName'].'发布了本群话题：'.$message['content']);
@@ -188,7 +229,7 @@ class GroupManager extends AbstractMessageHandler
 
                 if ($message['type'] === 'group_change') {
                     if ($message['action'] === 'ADD') {
-                        Text::send($message['from']['UserName'], '欢迎新人 @'.$message['invited'] ."[鼓掌]\r\n向大家[嘘]介绍一下自己吧[微笑]");
+                        Text::send($message['from']['UserName'], '@' . $message['invited'] . ' ' . $welcome_join_message);
                     }
                 }
                 //other type with content!!!
@@ -239,6 +280,13 @@ class GroupManager extends AbstractMessageHandler
      */
     public function register()
     {
+        static::$extension_config = [
+            'image_path' => static::$config['image_path'] ?? vbot('config')['user_path'].'groups/',
+            'before_join_message' => static::$config['before_join_message'] ?? "现在自动拉你入群，进群后请\r\n☝看群公告\r\n✌设置消息免打扰",
+            'welcome_join_message' => static::$config['welcome_join_message'] ?? "欢迎您加入本群[鼓掌]\r\n向大家[嘘]介绍一下自己吧[微笑]",
+            'share_txt' =>static::$config['share_txt'] ?? "请转发本图片到您朋友圈保留24小时即可获取播放地址，谢谢\r\n永不止息，感恩有你！\r\n如果已经发送的朋友，请您以基督徒的身份发送“已发朋友圈”给俺！",
+            'groups' => static::$config['groups'] ?? [],
+        ];
 
     }
 }
