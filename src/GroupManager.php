@@ -67,7 +67,9 @@ class GroupManager extends AbstractMessageHandler
             }//end of 自动转发
 
             //如果和小永🤖️聊天信息包含群全名，if not in group!!自动加入群组
-            if (isset($message['content']) && strpos($message['content'], $group['NickName']) !== false) {
+            if (isset($message['content']) 
+                && strpos($message['content'], $group['NickName']) !== false
+                && $message['fromType']=='Friend') {
                 if(!static::isUserInGroup($group, $message)) {//if not in group!!
                     $groups->addMember($groupUsername, $message['from']['UserName']);
                     Text::send($message['from']['UserName'], '现在自动拉你进去'.$group['NickName']."群，入群后请\r\n☝看群公告\r\n✌设置消息免打扰");
