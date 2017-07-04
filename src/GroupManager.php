@@ -130,7 +130,7 @@ class GroupManager extends AbstractMessageHandler
                     preg_match($pattern, $message['content'],$matches);
                     if (isset($matches[1])) {
                         if($uid = static::getUidByName($matches[1], $group)){
-                            Text::send($groupUsername,$matches[0].'你即将被踢出群聊，再见👋');
+                            Text::send($groupUsername,$matches[1].' 你即将被踢出群聊，再见👋');
                             $groups->deleteMember($groupUsername, $uid);
                         }
                     }
