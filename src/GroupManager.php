@@ -24,7 +24,6 @@ class GroupManager extends AbstractMessageHandler
     public $zhName = '群主管理';
 
     private static $points = [];
-    public static $status = true;
 
     private static $request_friend_log = [];
     private static $extension_config = [];
